@@ -7,7 +7,7 @@ import Haskore.Music(line)
 
 import Data.List
 
-data Chord a = Chord [a] deriving Show
+data Chord a = Chord {chord_tones :: [a]} deriving Show
 type RelChord = Chord Class
 
 (#>) :: Chord Class -> Chord Class -> Chord Class
@@ -17,16 +17,36 @@ Chord a #> Chord b = Chord $ a++b
 
 chord_map f (Chord tones) = Chord (f tones)
 
-chord_in :: Octave -> Chord Class -> Chord T
-chord_in oct0 (Chord notes) = Chord pitches
+up_arpeggio_in :: Octave -> Chord Class -> Chord T
+up_arpeggio_in oct0 (Chord notes) = Chord pitches
  where pitches = snd $ mapAccumL getHigher (oct0-1, Bs) notes
        getHigher (prev_oct, prev_deg) deg =
            let acc = if classToInt prev_deg < classToInt deg
                       then (prev_oct, deg) else (prev_oct+1, deg)
            in (acc, acc)
 
-rev_chord :: Chord T -> Chord T
+down_arpeggio_in :: Octave -> Chord Class -> Chord T
+down_arpeggio_in oct0 (Chord notes) = Chord pitches
+ where pitches = snd $ mapAccumL getLower (oct0+1, C) $ reverse notes
+       getLower (prev_oct, prev_deg) deg =
+           let acc = if classToInt prev_deg > classToInt deg
+                      then (prev_oct, deg) else (prev_oct-1, deg)
+           in (acc, acc)
+
+smoth_from :: Octave -> [Chord Class] -> Chord T
+smoth_from oct0 cs = Chord $ snd $ mapAccumL smooth' (oct0, head tones) tones
+    where tones = concatMap chord_tones cs
+
+smooth' prev@(prev_oct, prev_deg) tone =
+    let vars = [(prev_oct+1, tone), (prev_oct-1, tone), (prev_oct, tone)]
+        dist_to_prev p = abs $ toInt prev - toInt p
+        best = head $ sortBy (compareBy dist_to_prev) vars
+    in (best, best)
+
+compareBy f x y = compare (f x) (f y)
+
 rev_chord = chord_map reverse
+
 
 -- Builder helpers
 
@@ -76,4 +96,4 @@ pure8 = form_chord [0, 12]
 filled8 = form_chord [0, 7, 12]
 
 -- Conversion to Hackage types
-chord_to_arp len (Chord cs) = map (\p -> note p len ()) cs
+chord_to_notes len (Chord cs) = map (\p -> note p len ()) cs
